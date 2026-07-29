@@ -1,0 +1,6 @@
+{
+  "name": "WiFi Bill Collection Manager",
+  "description": "Manage customers, track monthly WiFi bills, dues, collections, export reports, PIN lock, and backup/restore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

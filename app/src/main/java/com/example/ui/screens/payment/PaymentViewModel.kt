@@ -80,7 +80,7 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
                     c.fullName.contains(query, ignoreCase = true) ||
                     c.mobileNumber.contains(query) ||
                     c.macAddress.contains(query, ignoreCase = true)
-        }
+        }.sortedByDescending { it.connectionDate }
         val filteredPayments = paymentsList.filter { item ->
             (month.isEmpty() || item.payment.billingMonth == month) &&
                     (query.isEmpty() || item.customer.fullName.contains(query, ignoreCase = true) || item.customer.mobileNumber.contains(query)) &&

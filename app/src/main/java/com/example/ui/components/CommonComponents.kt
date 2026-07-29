@@ -1,11 +1,14 @@
 package com.example.ui.components
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +44,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -152,6 +158,7 @@ fun SummaryStatCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CustomerItemCard(
     customer: Customer,
@@ -163,11 +170,26 @@ fun CustomerItemCard(
     onCollectClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    if (customer.macAddress.isNotEmpty()) {
+                        clipboardManager.setText(AnnotatedString(customer.macAddress))
+                        Toast.makeText(
+                            context,
+                            if (isBangla) "MAC address কপি করা হয়েছে: ${customer.macAddress}" else "MAC address copied: ${customer.macAddress}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            )
             .testTag("customer_item_${customer.id}"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -217,6 +239,13 @@ fun CustomerItemCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (customer.connectionDate.isNotEmpty()) {
+                            Text(
+                                text = LanguageUtils.formatConnectionDate(customer.connectionDate, isBangla),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 

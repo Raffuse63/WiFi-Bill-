@@ -1,7 +1,11 @@
 package com.example.ui.screens.payment
 
+import android.app.DatePickerDialog
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -58,7 +63,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -67,6 +75,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.util.LanguageUtils
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,6 +192,7 @@ fun PaymentScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CustomerPaymentCard(
     customer: com.example.data.local.entity.Customer,
@@ -190,11 +201,26 @@ private fun CustomerPaymentCard(
     onCollectPayment: () -> Unit,
     onClickCard: () -> Unit
 ) {
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .clickable { onClickCard() }
+            .combinedClickable(
+                onClick = onClickCard,
+                onLongClick = {
+                    if (customer.macAddress.isNotEmpty()) {
+                        clipboardManager.setText(AnnotatedString(customer.macAddress))
+                        Toast.makeText(
+                            context,
+                            if (isBangla) "MAC address কপি করা হয়েছে: ${customer.macAddress}" else "MAC address copied: ${customer.macAddress}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            )
             .testTag("customer_item_${customer.id}"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -245,6 +271,13 @@ private fun CustomerPaymentCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (customer.connectionDate.isNotEmpty()) {
+                            Text(
+                                text = LanguageUtils.formatConnectionDate(customer.connectionDate, isBangla),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         if (customer.mobileNumber.isNotEmpty()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
@@ -305,6 +338,7 @@ private fun CollectPaymentDialog(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val selectedCustId by viewModel.selectedCustomerId.collectAsStateWithLifecycle()
     val month by viewModel.billingMonthState.collectAsStateWithLifecycle()
@@ -314,6 +348,27 @@ private fun CollectPaymentDialog(
     val formError by viewModel.formErrorState.collectAsStateWithLifecycle()
 
     val selectedCustomer = state.customers.find { it.id == selectedCustId }
+
+    fun showDatePicker() {
+        val cal = Calendar.getInstance()
+        try {
+            val parts = date.split("-")
+            if (parts.size == 3) {
+                cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
+            }
+        } catch (_: Exception) {}
+
+        DatePickerDialog(
+            context,
+            { _, year, monthOfYear, dayOfMonth ->
+                val formattedDate = String.format(Locale.US, "%04d-%02d-%02d", year, monthOfYear + 1, dayOfMonth)
+                viewModel.paymentDateState.value = formattedDate
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -386,16 +441,38 @@ private fun CollectPaymentDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                OutlinedTextField(
-                    value = date,
-                    onValueChange = { viewModel.paymentDateState.value = it },
-                    label = { Text(LanguageUtils.getText("payment_date", isBangla)) },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("input_payment_date"),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
-                )
+                        .clickable { showDatePicker() }
+                ) {
+                    OutlinedTextField(
+                        value = date,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = false,
+                        label = { Text(LanguageUtils.getText("payment_date", isBangla)) },
+                        trailingIcon = {
+                            IconButton(onClick = { showDatePicker() }) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = "Pick Payment Date"
+                                )
+                            }
+                        },
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_payment_date"),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
 
                 OutlinedTextField(
                     value = remarks,

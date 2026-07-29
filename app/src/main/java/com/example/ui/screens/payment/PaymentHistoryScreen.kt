@@ -1,5 +1,7 @@
 package com.example.ui.screens.payment
 
+import android.app.DatePickerDialog
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Receipt
@@ -15,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +29,8 @@ import com.example.data.preferences.UserSettings
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.util.LanguageUtils
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -258,8 +264,30 @@ private fun EditPaymentDialog(
     val remarks by viewModel.editRemarksState.collectAsStateWithLifecycle()
     val editError by viewModel.editErrorState.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     if (editingItem == null) return
+
+    fun showDatePicker() {
+        val cal = Calendar.getInstance()
+        try {
+            val parts = date.split("-")
+            if (parts.size == 3) {
+                cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
+            }
+        } catch (_: Exception) {}
+
+        DatePickerDialog(
+            context,
+            { _, year, monthOfYear, dayOfMonth ->
+                val formattedDate = String.format(Locale.US, "%04d-%02d-%02d", year, monthOfYear + 1, dayOfMonth)
+                viewModel.editDateState.value = formattedDate
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -309,14 +337,36 @@ private fun EditPaymentDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                OutlinedTextField(
-                    value = date,
-                    onValueChange = { viewModel.editDateState.value = it },
-                    label = { Text(LanguageUtils.getText("payment_date", isBangla)) },
-                    modifier = Modifier.fillMaxWidth().testTag("input_edit_payment_date"),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showDatePicker() }
+                ) {
+                    OutlinedTextField(
+                        value = date,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = false,
+                        label = { Text(LanguageUtils.getText("payment_date", isBangla)) },
+                        trailingIcon = {
+                            IconButton(onClick = { showDatePicker() }) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = "Pick Payment Date"
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("input_edit_payment_date"),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
 
                 OutlinedTextField(
                     value = remarks,

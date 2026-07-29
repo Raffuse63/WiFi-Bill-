@@ -73,9 +73,7 @@ fun AddEditCustomerScreen(
     val isBangla = settings.settings.language == "bn"
 
     LaunchedEffect(customerId) {
-        if (customerId > 0) {
-            viewModel.loadCustomerForEdit(customerId)
-        }
+        viewModel.loadCustomerForEdit(customerId)
     }
 
     val context = LocalContext.current
@@ -176,24 +174,38 @@ fun AddEditCustomerScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            OutlinedTextField(
-                value = connectionDate,
-                onValueChange = { viewModel.connectionDateState.value = it },
-                label = { Text(LanguageUtils.getText("connection_date", isBangla)) },
-                trailingIcon = {
-                    IconButton(onClick = { showDatePicker() }) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarToday,
-                            contentDescription = "Pick Connection Date"
-                        )
-                    }
-                },
+            androidx.compose.foundation.layout.Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("input_connection_date"),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
-            )
+                    .clickable { showDatePicker() }
+            ) {
+                OutlinedTextField(
+                    value = connectionDate,
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    label = { Text(LanguageUtils.getText("connection_date", isBangla)) },
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker() }) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = "Pick Connection Date"
+                            )
+                        }
+                    },
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_connection_date"),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
 
             Row(
                 modifier = Modifier
@@ -212,17 +224,6 @@ fun AddEditCustomerScreen(
                     modifier = Modifier.testTag("switch_active_status")
                 )
             }
-
-            OutlinedTextField(
-                value = notes,
-                onValueChange = { viewModel.notesState.value = it },
-                label = { Text(LanguageUtils.getText("notes", isBangla)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("input_notes"),
-                minLines = 3,
-                shape = RoundedCornerShape(12.dp)
-            )
 
             Spacer(modifier = Modifier.height(16.dp))
 

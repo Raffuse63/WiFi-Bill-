@@ -23,6 +23,26 @@ object LanguageUtils {
         return "$currency $localizedNum"
     }
 
+    fun formatConnectionDate(dateStr: String, isBangla: Boolean): String {
+        if (dateStr.isBlank()) return ""
+        try {
+            val parts = dateStr.trim().split("-", "/", ".")
+            if (parts.size >= 3) {
+                val (d, m, y) = if (parts[0].length == 4) {
+                    Triple(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
+                } else {
+                    Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+                }
+                val shortMonths = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+                val monthStr = if (m in 1..12) shortMonths[m - 1] else parts[1]
+                val dayStr = formatNumber(d, isBangla)
+                val yrStr = formatNumber(y % 100, isBangla)
+                return "$dayStr $monthStr $yrStr"
+            }
+        } catch (_: Exception) {}
+        return formatNumber(dateStr, isBangla)
+    }
+
     fun getText(key: String, isBangla: Boolean): String {
         return if (isBangla) banglaMap[key] ?: englishMap[key] ?: key
         else englishMap[key] ?: key
@@ -32,7 +52,7 @@ object LanguageUtils {
         "app_title" to "WiFi Bill Collection Manager",
         "dashboard" to "Dashboard",
         "customers" to "Customers",
-        "payments" to "Payments",
+        "payments" to "Customer",
         "payment_history" to "History",
         "reports" to "Reports",
         "settings" to "Settings",
@@ -94,7 +114,7 @@ object LanguageUtils {
         "app_title" to "ওয়াইফাই বিল কালেকশন ম্যানেজার",
         "dashboard" to "ড্যাশবোর্ড",
         "customers" to "গ্রাহকবৃন্দ",
-        "payments" to "পেমেন্টসমূহ",
+        "payments" to "কাস্টমার",
         "payment_history" to "হিস্টোরি",
         "reports" to "রিপোর্ট",
         "settings" to "সেটিংস",

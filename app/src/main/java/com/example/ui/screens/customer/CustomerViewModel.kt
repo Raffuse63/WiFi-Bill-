@@ -48,7 +48,7 @@ class CustomerViewModel(private val repository: WiFiManagerRepository) : ViewMod
             c.fullName.contains(query, ignoreCase = true) ||
                     c.mobileNumber.contains(query) ||
                     c.macAddress.contains(query, ignoreCase = true)
-        }
+        }.sortedByDescending { it.connectionDate }
 
         if (filter != "ALL") {
             filtered = filtered.filter { c ->
@@ -106,8 +106,23 @@ class CustomerViewModel(private val repository: WiFiManagerRepository) : ViewMod
     var notesState = MutableStateFlow("")
     var formErrorState = MutableStateFlow<String?>(null)
 
+    fun resetForm() {
+        nameState.value = ""
+        mobileState.value = ""
+        addressState.value = ""
+        billAmountState.value = ""
+        macAddressState.value = ""
+        connectionDateState.value = repository.getTodayDateString()
+        isActiveState.value = true
+        notesState.value = ""
+        formErrorState.value = null
+    }
+
     fun loadCustomerForEdit(id: Long) {
-        if (id <= 0) return
+        if (id <= 0) {
+            resetForm()
+            return
+        }
         viewModelScope.launch {
             val customer = repository.getCustomerById(id)
             if (customer != null) {

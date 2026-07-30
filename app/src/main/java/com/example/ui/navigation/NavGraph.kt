@@ -51,15 +51,16 @@ import com.example.ui.util.LanguageUtils
 import androidx.navigation.navArgument
 
 data class BottomNavItem(
-    val route: String,
+    val navigateRoute: String,
+    val destinationRoute: String,
     val titleKey: String,
     val icon: ImageVector
 )
 
 val bottomNavItems = listOf(
-    BottomNavItem(Screen.Payment.route, "payments", Icons.Default.Payments),
-    BottomNavItem(Screen.PaymentHistory.route, "payment_history", Icons.Default.Receipt),
-    BottomNavItem(Screen.Settings.route, "settings", Icons.Default.Settings)
+    BottomNavItem(Screen.Payment.createRoute(-1L), Screen.Payment.route, "payments", Icons.Default.Payments),
+    BottomNavItem(Screen.PaymentHistory.route, Screen.PaymentHistory.route, "payment_history", Icons.Default.Receipt),
+    BottomNavItem(Screen.Settings.route, Screen.Settings.route, "settings", Icons.Default.Settings)
 )
 
 @Composable
@@ -91,7 +92,15 @@ fun AppNavGraph(
         factory = SettingsViewModel.Factory(repository, settingsDataStore, backupManager)
     )
 
-    val showBottomBar = currentRoute in bottomNavItems.map { it.route }
+    val mainTabRoutes = setOf(
+        Screen.Payment.route,
+        Screen.PaymentHistory.route,
+        Screen.Settings.route,
+        Screen.Dashboard.route,
+        Screen.CustomerList.route,
+        Screen.Reports.route
+    )
+    val showBottomBar = currentRoute in mainTabRoutes
 
     Scaffold(
         bottomBar = {
@@ -101,11 +110,11 @@ fun AppNavGraph(
                     tonalElevation = 6.dp
                 ) {
                     bottomNavItems.forEach { item ->
-                        val isSelected = currentRoute == item.route
+                        val isSelected = currentRoute == item.destinationRoute || (item.titleKey == "payments" && currentRoute?.startsWith("payment") == true)
                         NavigationBarItem(
                             selected = isSelected,
                             onClick = {
-                                navController.navigate(item.route) {
+                                navController.navigate(item.navigateRoute) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }

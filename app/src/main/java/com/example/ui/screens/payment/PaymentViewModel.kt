@@ -19,6 +19,7 @@ data class PaymentUiState(
     val settings: UserSettings = UserSettings(),
     val payments: List<PaymentWithCustomer> = emptyList(),
     val customers: List<Customer> = emptyList(),
+    val currentMonthBillsMap: Map<Long, com.example.data.local.entity.MonthlyBill> = emptyMap(),
     val searchQuery: String = "",
     val selectedTab: Int = 0, // 0 = Customers, 1 = History
     val selectedMonth: String = "",
@@ -68,12 +69,15 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
         repository.userSettings,
         repository.allPaymentsWithCustomer,
         repository.allCustomers,
+        repository.getBillsWithCustomerByMonth(repository.getCurrentMonthString()),
         _filterParams
-    ) { settings, paymentsList, customersList, filter ->
+    ) { settings, paymentsList, customersList, currentMonthBills, filter ->
         val query = filter.query
         val month = filter.month
         val tab = filter.tab
         val custFilterId = filter.customerFilterId
+
+        val billsMap = currentMonthBills.associate { it.customer.id to it.bill }
 
         val filteredCustomers = customersList.filter { c ->
             query.isEmpty() ||
@@ -90,6 +94,7 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
             settings = settings,
             payments = filteredPayments,
             customers = filteredCustomers,
+            currentMonthBillsMap = billsMap,
             searchQuery = query,
             selectedTab = tab,
             selectedMonth = month,

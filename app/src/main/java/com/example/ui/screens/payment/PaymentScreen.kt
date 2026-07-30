@@ -159,6 +159,7 @@ fun PaymentScreen(
                     items(state.customers, key = { it.id }) { customer ->
                         CustomerPaymentCard(
                             customer = customer,
+                            monthlyBill = state.currentMonthBillsMap[customer.id],
                             currency = currency,
                             isBangla = isBangla,
                             onCollectPayment = {
@@ -196,6 +197,7 @@ fun PaymentScreen(
 @Composable
 private fun CustomerPaymentCard(
     customer: com.example.data.local.entity.Customer,
+    monthlyBill: com.example.data.local.entity.MonthlyBill?,
     currency: String,
     isBangla: Boolean,
     onCollectPayment: () -> Unit,
@@ -203,6 +205,14 @@ private fun CustomerPaymentCard(
 ) {
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
+
+    val paidAmount = monthlyBill?.paidAmount ?: 0.0
+    val totalBill = monthlyBill?.totalAmount ?: customer.monthlyBillAmount
+    val isPaid = monthlyBill?.status == "PAID" || (paidAmount >= totalBill && totalBill > 0)
+
+    val billLabel = if (isBangla) "বিল" else "Bill"
+    val paidFormatted = LanguageUtils.formatAmount(paidAmount, currency, isBangla)
+    val billDisplayText = if (isPaid) "$paidFormatted ✅" else paidFormatted
 
     Card(
         modifier = Modifier
@@ -293,6 +303,23 @@ private fun CustomerPaymentCard(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(
+                                text = "$billLabel: ",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = billDisplayText,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPaid) EmeraldGreen else MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }

@@ -42,7 +42,7 @@ class WiFiManagerRepository(
     suspend fun addCustomer(customer: Customer): Long = withContext(Dispatchers.IO) {
         val id = customerDao.insertCustomer(customer)
         if (id > 0 && customer.isActive) {
-            val currentMonth = getCurrentMonthString()
+            val currentMonth = getBillingMonthForCustomer(customer)
             monthlyBillDao.insertBill(
                 MonthlyBill(
                     customerId = id,
@@ -65,6 +65,8 @@ class WiFiManagerRepository(
     }
 
     // Bills
+    val allBills: Flow<List<MonthlyBill>> = monthlyBillDao.getAllBills()
+
     fun getBillsByMonth(month: String): Flow<List<MonthlyBill>> = monthlyBillDao.getBillsByMonth(month)
 
     fun getBillsWithCustomerByMonth(month: String): Flow<List<BillWithCustomer>> =
@@ -80,17 +82,18 @@ class WiFiManagerRepository(
     val totalDueAmount: Flow<Double?> = monthlyBillDao.getTotalDueAmount()
 
     /**
-     * Automatic Bill Generation for Current Month
+     * Automatic Bill Generation for Current Billing Cycle per Customer
      */
-    suspend fun autoGenerateMonthlyBills(month: String = getCurrentMonthString()) = withContext(Dispatchers.IO) {
+    suspend fun autoGenerateMonthlyBills() = withContext(Dispatchers.IO) {
         val activeCustomersList = customerDao.getAllCustomersList().filter { it.isActive }
         for (customer in activeCustomersList) {
-            val existingBill = monthlyBillDao.getBillByCustomerAndMonth(customer.id, month)
+            val targetMonth = getBillingMonthForCustomer(customer)
+            val existingBill = monthlyBillDao.getBillByCustomerAndMonth(customer.id, targetMonth)
             if (existingBill == null) {
                 monthlyBillDao.insertBill(
                     MonthlyBill(
                         customerId = customer.id,
-                        billMonth = month,
+                        billMonth = targetMonth,
                         totalAmount = customer.monthlyBillAmount,
                         paidAmount = 0.0,
                         status = "UNPAID"
@@ -249,6 +252,49 @@ class WiFiManagerRepository(
     }
 
     // Date Utilities
+    fun getBillingMonthForCustomer(customer: Customer, date: Date = Date()): String {
+        return getBillingMonthForConnectionDate(customer.connectionDate, date)
+    }
+
+    fun getBillingMonthForConnectionDate(connectionDate: String, date: Date = Date()): String {
+        val cal = Calendar.getInstance()
+        cal.time = date
+        val todayYear = cal.get(Calendar.YEAR)
+        val todayMonth = cal.get(Calendar.MONTH) // 0-based
+        val todayDay = cal.get(Calendar.DAY_OF_MONTH)
+
+        var connectionDay = 1
+        try {
+            if (connectionDate.isNotBlank()) {
+                val parts = connectionDate.trim().split("-", "/", ".")
+                if (parts.size >= 3) {
+                    connectionDay = if (parts[0].length == 4) {
+                        parts[2].toInt()
+                    } else {
+                        parts[0].toInt()
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            connectionDay = 1
+        }
+
+        if (connectionDay < 1) connectionDay = 1
+        if (connectionDay > 31) connectionDay = 31
+
+        val maxDaysInTodayMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val effectiveConnectionDay = minOf(connectionDay, maxDaysInTodayMonth)
+
+        return if (todayDay >= effectiveConnectionDay) {
+            String.format(Locale.US, "%04d-%02d", todayYear, todayMonth + 1)
+        } else {
+            cal.add(Calendar.MONTH, -1)
+            val cycleYear = cal.get(Calendar.YEAR)
+            val cycleMonth = cal.get(Calendar.MONTH) + 1
+            String.format(Locale.US, "%04d-%02d", cycleYear, cycleMonth)
+        }
+    }
+
     fun getCurrentMonthString(): String {
         return SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
     }

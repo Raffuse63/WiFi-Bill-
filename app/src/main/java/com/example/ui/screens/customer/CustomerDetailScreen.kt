@@ -156,6 +156,7 @@ fun CustomerDetailScreen(
                 val cal = Calendar.getInstance()
                 val curY = cal.get(Calendar.YEAR)
                 val curM = cal.get(Calendar.MONTH) + 1 // 1..12
+                val curD = cal.get(Calendar.DAY_OF_MONTH)
 
                 var cY = curY
                 var cM = curM
@@ -176,11 +177,21 @@ fun CustomerDetailScreen(
                     }
                 } catch (_: Exception) {}
 
+                val maxDaysInCurMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                val effectiveCD = minOf(cD, maxDaysInCurMonth)
+
+                val targetCal = Calendar.getInstance()
+                if (curD < effectiveCD) {
+                    targetCal.add(Calendar.MONTH, -1)
+                }
+                val targetY = targetCal.get(Calendar.YEAR)
+                val targetM = targetCal.get(Calendar.MONTH) + 1
+
                 val list = mutableListOf<BillingCycleInfo>()
                 var y = cY
                 var m = cM
 
-                while (y < curY || (y == curY && m <= curM)) {
+                while (y < targetY || (y == targetY && m <= targetM) || (list.isEmpty() && y == cY && m == cM)) {
                     val monthIdx = m - 1
                     val startDayStr = LanguageUtils.formatNumber(cD, isBangla)
                     val startMonthName = if (isBangla) bnMonths[monthIdx] else enMonths[monthIdx]
@@ -200,6 +211,8 @@ fun CustomerDetailScreen(
                     val monthPadded = String.format("%04d-%02d", y, m)
 
                     list.add(BillingCycleInfo(y, m, monthPadded, cycleLabel))
+
+                    if (y == targetY && m == targetM) break
 
                     m++
                     if (m > 12) {

@@ -144,12 +144,18 @@ fun CustomerListScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(state.customers, key = { it.id }) { customer ->
+                        val bill = state.customerBillsMap[customer.id]
+                        val paid = bill?.paidAmount ?: 0.0
+                        val total = bill?.totalAmount ?: customer.monthlyBillAmount
+                        val due = maxOf(0.0, total - paid)
+                        val status = bill?.status ?: (if (customer.isActive) "ACTIVE" else "INACTIVE")
+
                         CustomerItemCard(
                             customer = customer,
                             currency = currency,
                             isBangla = isBangla,
-                            dueAmount = customer.monthlyBillAmount,
-                            billStatus = if (customer.isActive) "ACTIVE" else "INACTIVE",
+                            dueAmount = due,
+                            billStatus = if (customer.isActive) status else "INACTIVE",
                             onClick = { onNavigateToCustomerDetail(customer.id) },
                             onCollectClick = { onNavigateToCollectPayment(customer.id) }
                         )

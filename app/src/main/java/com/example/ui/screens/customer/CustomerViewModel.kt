@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 data class CustomerListUiState(
     val settings: UserSettings = UserSettings(),
     val customers: List<Customer> = emptyList(),
+    val customerBillsMap: Map<Long, MonthlyBill> = emptyMap(),
     val searchQuery: String = "",
     val selectedFilter: String = "ALL", // ALL, PAID, DUE, PARTIAL
     val isLoading: Boolean = false
@@ -33,16 +34,25 @@ class CustomerViewModel(private val repository: WiFiManagerRepository) : ViewMod
     private val _selectedFilter = MutableStateFlow("ALL")
     val selectedFilter = _selectedFilter.asStateFlow()
 
-    val currentMonth = repository.getCurrentMonthString()
-
     val listUiState: StateFlow<CustomerListUiState> = combine(
         repository.userSettings,
         repository.allCustomers,
-        repository.getBillsWithCustomerByMonth(currentMonth),
+        repository.allBills,
         _searchQuery,
         _selectedFilter
-    ) { settings, customersList, billsWithCustList, query, filter ->
-        val billStatusMap = billsWithCustList.associate { it.customer.id to it.bill.status }
+    ) { settings, customersList, billsList, query, filter ->
+        val activeBillsMap = customersList.associate { c ->
+            val targetMonth = repository.getBillingMonthForCustomer(c)
+            val bill = billsList.find { it.customerId == c.id && it.billMonth == targetMonth }
+                ?: MonthlyBill(
+                    customerId = c.id,
+                    billMonth = targetMonth,
+                    totalAmount = c.monthlyBillAmount,
+                    paidAmount = 0.0,
+                    status = "UNPAID"
+                )
+            c.id to bill
+        }
 
         var filtered = customersList.filter { c ->
             c.fullName.contains(query, ignoreCase = true) ||
@@ -52,7 +62,8 @@ class CustomerViewModel(private val repository: WiFiManagerRepository) : ViewMod
 
         if (filter != "ALL") {
             filtered = filtered.filter { c ->
-                val status = billStatusMap[c.id] ?: "UNPAID"
+                val bill = activeBillsMap[c.id]
+                val status = bill?.status ?: "UNPAID"
                 when (filter) {
                     "PAID" -> status == "PAID"
                     "DUE" -> status == "UNPAID" || status == "PARTIAL"
@@ -65,6 +76,7 @@ class CustomerViewModel(private val repository: WiFiManagerRepository) : ViewMod
         CustomerListUiState(
             settings = settings,
             customers = filtered,
+            customerBillsMap = activeBillsMap,
             searchQuery = query,
             selectedFilter = filter
         )

@@ -32,18 +32,23 @@ class DashboardViewModel(private val repository: WiFiManagerRepository) : ViewMo
 
     init {
         viewModelScope.launch {
-            repository.autoGenerateMonthlyBills(currentMonth)
+            repository.autoGenerateMonthlyBills()
         }
     }
 
     private val countsAndCollectionFlow = combine(
         repository.totalCustomerCount,
         repository.activeCustomers,
-        repository.getPaidCountByMonth(currentMonth),
-        repository.getDueCountByMonth(currentMonth),
+        repository.allBills,
         repository.getTotalCollectionByMonth(currentMonth)
-    ) { totalCount, activeList, paidC, dueC, collection ->
-        Tuple5(totalCount, activeList.size, paidC, dueC, collection ?: 0.0)
+    ) { totalCount, activeList, billsList, collection ->
+        val paidCount = activeList.count { c ->
+            val targetMonth = repository.getBillingMonthForCustomer(c)
+            val bill = billsList.find { it.customerId == c.id && it.billMonth == targetMonth }
+            bill?.status == "PAID"
+        }
+        val dueCount = activeList.size - paidCount
+        Tuple5(totalCount, activeList.size, paidCount, dueCount, collection ?: 0.0)
     }
 
     val uiState: StateFlow<DashboardUiState> = combine(

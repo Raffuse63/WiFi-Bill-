@@ -51,5 +51,8 @@ interface MonthlyBillDao {
     fun getTotalDueAmount(): Flow<Double?>
 
     @Query("SELECT * FROM monthly_bills")
+    fun getAllBills(): Flow<List<MonthlyBill>>
+
+    @Query("SELECT * FROM monthly_bills")
     suspend fun getAllBillsList(): List<MonthlyBill>
 }

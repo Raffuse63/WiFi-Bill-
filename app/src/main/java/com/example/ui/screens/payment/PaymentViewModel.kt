@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.entity.Customer
+import com.example.data.local.entity.MonthlyBill
 import com.example.data.local.model.PaymentWithCustomer
 import com.example.data.preferences.UserSettings
 import com.example.data.repository.WiFiManagerRepository
@@ -69,15 +70,26 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
         repository.userSettings,
         repository.allPaymentsWithCustomer,
         repository.allCustomers,
-        repository.getBillsWithCustomerByMonth(repository.getCurrentMonthString()),
+        repository.allBills,
         _filterParams
-    ) { settings, paymentsList, customersList, currentMonthBills, filter ->
+    ) { settings, paymentsList, customersList, billsList, filter ->
         val query = filter.query
         val month = filter.month
         val tab = filter.tab
         val custFilterId = filter.customerFilterId
 
-        val billsMap = currentMonthBills.associate { it.customer.id to it.bill }
+        val billsMap = customersList.associate { c ->
+            val targetMonth = repository.getBillingMonthForCustomer(c)
+            val bill = billsList.find { it.customerId == c.id && it.billMonth == targetMonth }
+                ?: MonthlyBill(
+                    customerId = c.id,
+                    billMonth = targetMonth,
+                    totalAmount = c.monthlyBillAmount,
+                    paidAmount = 0.0,
+                    status = "UNPAID"
+                )
+            c.id to bill
+        }
 
         val filteredCustomers = customersList.filter { c ->
             query.isEmpty() ||
@@ -149,6 +161,7 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
                 val customer = repository.getCustomerById(preselectedCustomerId)
                 if (customer != null) {
                     amountPaidState.value = customer.monthlyBillAmount.toString()
+                    billingMonthState.value = repository.getBillingMonthForCustomer(customer)
                 }
             }
         }
@@ -156,7 +169,6 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
 
     suspend fun recordPayment(): Boolean {
         val custId = selectedCustomerId.value
-        val month = billingMonthState.value.trim()
         val amount = amountPaidState.value.toDoubleOrNull() ?: -1.0
         val date = paymentDateState.value.trim()
         val remarks = remarksState.value.trim()
@@ -170,6 +182,10 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
             return false
         }
 
+        val customer = repository.getCustomerById(custId)
+        val defaultMonth = if (customer != null) repository.getBillingMonthForCustomer(customer) else repository.getCurrentMonthString()
+        val month = billingMonthState.value.trim().ifEmpty { defaultMonth }
+
         repository.recordPayment(
             customerId = custId,
             billingMonth = month.ifEmpty { repository.getCurrentMonthString() },
@@ -179,7 +195,6 @@ class PaymentViewModel(private val repository: WiFiManagerRepository) : ViewMode
         )
 
         // Generate Receipt Data
-        val customer = repository.getCustomerById(custId)
         val settings = uiState.value.settings
         if (customer != null) {
             receiptDataState.value = PaymentReceiptData(

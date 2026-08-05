@@ -10,10 +10,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 data class BackupData(
-    val exportDate: String,
-    val customers: List<Customer>,
-    val monthlyBills: List<MonthlyBill>,
-    val payments: List<Payment>
+    val exportDate: String? = null,
+    val customers: List<Customer>? = null,
+    val monthlyBills: List<MonthlyBill>? = null,
+    val payments: List<Payment>? = null
 )
 
 class BackupManager(private val db: AppDatabase) {
@@ -36,33 +36,48 @@ class BackupManager(private val db: AppDatabase) {
 
     suspend fun restoreFromJson(jsonString: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val adapter = moshi.adapter(BackupData::class.java)
-            val backupData = adapter.fromJson(jsonString) ?: return@withContext false
+            val trimmed = jsonString.trim()
+            if (trimmed.isEmpty() || !trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+                return@withContext false
+            }
 
-            if (backupData.customers.isNotEmpty()) {
-                db.customerDao().insertCustomers(backupData.customers)
+            val adapter = moshi.adapter(BackupData::class.java)
+            val backupData = adapter.fromJson(trimmed) ?: return@withContext false
+
+            // Validate that this is indeed our app's backup JSON
+            val hasCustomers = backupData.customers != null
+            val hasBills = backupData.monthlyBills != null
+            val hasPayments = backupData.payments != null
+            val hasExportDate = backupData.exportDate != null
+
+            if (!hasCustomers && !hasBills && !hasPayments && !hasExportDate) {
+                return@withContext false
             }
-            if (backupData.monthlyBills.isNotEmpty()) {
-                db.monthlyBillDao().insertBills(backupData.monthlyBills)
+
+            var restored = false
+            backupData.customers?.let {
+                if (it.isNotEmpty()) {
+                    db.customerDao().insertCustomers(it)
+                    restored = true
+                }
             }
-            if (backupData.payments.isNotEmpty()) {
-                db.paymentDao().insertPayments(backupData.payments)
+            backupData.monthlyBills?.let {
+                if (it.isNotEmpty()) {
+                    db.monthlyBillDao().insertBills(it)
+                    restored = true
+                }
             }
-            true
+            backupData.payments?.let {
+                if (it.isNotEmpty()) {
+                    db.paymentDao().insertPayments(it)
+                    restored = true
+                }
+            }
+
+            restored || hasExportDate
         } catch (e: Exception) {
             e.printStackTrace()
             false
         }
-    }
-
-    suspend fun exportCustomersCsv(): String = withContext(Dispatchers.IO) {
-        val customers = db.customerDao().getAllCustomersList()
-        val sb = StringBuilder()
-        sb.append("ID,Full Name,Mobile Number,Address,MAC Address,Monthly Bill,Connection Date,Status,Notes\n")
-        for (c in customers) {
-            val status = if (c.isActive) "Active" else "Inactive"
-            sb.append("${c.id},\"${c.fullName}\",\"${c.mobileNumber}\",\"${c.address}\",\"${c.macAddress}\",${c.monthlyBillAmount},\"${c.connectionDate}\",\"$status\",\"${c.notes}\"\n")
-        }
-        sb.toString()
     }
 }

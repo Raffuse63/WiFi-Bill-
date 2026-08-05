@@ -29,7 +29,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -207,23 +206,7 @@ fun AddEditCustomerScreen(
                 )
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (isBangla) "গ্রাহকের অবস্থা (সক্রিয়/নিষ্ক্রিয়)" else "Customer Status (Active / Inactive)",
-                    fontWeight = FontWeight.Medium
-                )
-                Switch(
-                    checked = isActive,
-                    onCheckedChange = { viewModel.isActiveState.value = it },
-                    modifier = Modifier.testTag("switch_active_status")
-                )
-            }
+
 
             Spacer(modifier = Modifier.height(16.dp))
 

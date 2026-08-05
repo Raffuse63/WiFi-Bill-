@@ -1,9 +1,9 @@
 package com.example.ui.screens.settings
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,10 +19,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,6 +55,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.util.LanguageUtils
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -73,6 +77,64 @@ fun SettingsScreen(
 
     var showBackupDialog by remember { mutableStateOf(false) }
     var backupJsonOutput by remember { mutableStateOf("") }
+
+    var showWrongFileWarningDialog by remember { mutableStateOf(false) }
+
+    // SAF Launcher for Downloading JSON Backup
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                try {
+                    val json = viewModel.exportJsonBackup()
+                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(json.toByteArray(Charsets.UTF_8))
+                    }
+                    Toast.makeText(
+                        context,
+                        if (isBangla) "JSON ব্যাকআপ ফাইল সফলভাবে ডাউনলোড হয়েছে!" else "JSON backup file downloaded successfully!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        context,
+                        if (isBangla) "ডাউনলোড ব্যর্থ হয়েছে!" else "Download failed!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    // SAF Launcher for Restoring JSON Backup File
+    val openDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    } ?: ""
+
+                    val success = viewModel.restoreJsonBackup(content)
+                    if (success) {
+                        Toast.makeText(
+                            context,
+                            if (isBangla) "ডাটাবেস সফলভাবে রিস্টোর হয়েছে!" else "Database restored successfully!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        showRestoreDialog = false
+                    } else {
+                        showWrongFileWarningDialog = true
+                    }
+                } catch (e: Exception) {
+                    showWrongFileWarningDialog = true
+                }
+            }
+        }
+    }
 
     Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
         Column(
@@ -221,10 +283,9 @@ fun SettingsScreen(
 
                     Button(
                         onClick = {
-                            coroutineScope.launch {
-                                backupJsonOutput = viewModel.exportJsonBackup()
-                                showBackupDialog = true
-                            }
+                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                            val fileName = "wifi_manager_backup_$timeStamp.json"
+                            createDocumentLauncher.launch(fileName)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -233,7 +294,7 @@ fun SettingsScreen(
                     ) {
                         Icon(imageVector = Icons.Default.Download, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(LanguageUtils.getText("backup_json", isBangla))
+                        Text(if (isBangla) "JSON ব্যাকআপ ডাউনলোড করুন" else "Download JSON Backup")
                     }
 
                     Button(
@@ -246,28 +307,7 @@ fun SettingsScreen(
                     ) {
                         Icon(imageVector = Icons.Default.Upload, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(LanguageUtils.getText("restore_json", isBangla))
-                    }
-
-                    Button(
-                        onClick = {
-                            coroutineScope.launch {
-                                val csv = viewModel.exportCustomersCsv()
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Customer List CSV", csv)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, if (isBangla) "CSV ক্লিফবোর্ডে কপি করা হয়েছে!" else "CSV copied to clipboard!", Toast.LENGTH_LONG).show()
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("btn_export_csv"),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Code, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(LanguageUtils.getText("export_csv", isBangla))
+                        Text(if (isBangla) "JSON ফাইল রিস্টোর করুন" else "Restore JSON File")
                     }
                 }
             }
@@ -276,59 +316,36 @@ fun SettingsScreen(
         }
     }
 
-    if (showBackupDialog) {
-        AlertDialog(
-            onDismissRequest = { showBackupDialog = false },
-            title = { Text(LanguageUtils.getText("backup_json", isBangla)) },
-            text = {
-                Column {
-                    Text(if (isBangla) "আপনার ব্যাকআপ ডাটা প্রস্তুত:" else "Your backup data is generated:")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = backupJsonOutput,
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(150.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("WiFi Manager Backup JSON", backupJsonOutput)
-                        clipboard.setPrimaryClip(clip)
-                        Toast.makeText(context, if (isBangla) "ব্যাকআপ ক্লিফবোর্ডে কপি করা হয়েছে!" else "Backup copied to clipboard!", Toast.LENGTH_SHORT).show()
-                        showBackupDialog = false
-                    }
-                ) {
-                    Text(if (isBangla) "কপি করুন" else "Copy Backup Data")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBackupDialog = false }) {
-                    Text(LanguageUtils.getText("cancel", isBangla))
-                }
-            }
-        )
-    }
-
     if (showRestoreDialog) {
         AlertDialog(
             onDismissRequest = { showRestoreDialog = false },
-            title = { Text(LanguageUtils.getText("restore_json", isBangla)) },
+            title = { Text(if (isBangla) "JSON ফাইল রিস্টোর" else "Restore JSON Backup") },
             text = {
-                Column {
-                    Text(if (isBangla) "এখানে আপনার JSON ব্যাকআপ ডাটা পেস্ট করুন:" else "Paste your JSON backup data below:")
-                    Spacer(modifier = Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(if (isBangla) "ডিভাইস থেকে ডাউনলোড করা .json ফাইল সিলেক্ট করুন অথবা নিচে ডাটা পেস্ট করুন:" else "Select a downloaded .json file from your device or paste the JSON text below:")
+
+                    Button(
+                        onClick = {
+                            openDocumentLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.FileOpen, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (isBangla) "JSON ফাইল সিলেক্ট করুন" else "Select JSON File")
+                    }
+
+                    Text(if (isBangla) "অথবা টেক্সট পেস্ট করুন:" else "Or paste text:", fontWeight = FontWeight.Medium)
+
                     OutlinedTextField(
                         value = restoreJsonInput,
                         onValueChange = { restoreJsonInput = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(150.dp)
+                            .height(120.dp),
+                        shape = RoundedCornerShape(8.dp)
                     )
                 }
             },
@@ -339,10 +356,11 @@ fun SettingsScreen(
                             val success = viewModel.restoreJsonBackup(restoreJsonInput)
                             if (success) {
                                 Toast.makeText(context, if (isBangla) "ডাটাবেস সফলভাবে রিস্টোর হয়েছে!" else "Database restored successfully!", Toast.LENGTH_SHORT).show()
+                                showRestoreDialog = false
                             } else {
-                                Toast.makeText(context, if (isBangla) "রিস্টোর ব্যর্থ হয়েছে! অনুগ্রহ করে সঠিক JSON পেস্ট করুন।" else "Restore failed! Please paste valid JSON.", Toast.LENGTH_SHORT).show()
+                                showRestoreDialog = false
+                                showWrongFileWarningDialog = true
                             }
-                            showRestoreDialog = false
                         }
                     }
                 ) {
@@ -356,4 +374,41 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (showWrongFileWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showWrongFileWarningDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Warning",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = {
+                Text(
+                    text = if (isBangla) "ভুল ফাইল সতর্কবার্তা!" else "Wrong File Warning!",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (isBangla)
+                        "ভুল ফাইল নির্বাচন বা পেস্ট করা হয়েছে! এটি কোনো সঠিক JSON ব্যাকআপ ফাইল নয়। অনুগ্রহ করে সঠিক .json ব্যাকআপ ফাইল রিস্টোর করুন।"
+                    else
+                        "Invalid or wrong file selected! This is not a valid JSON backup file. Please select or paste a valid .json backup file."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showWrongFileWarningDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(if (isBangla) "ঠিক আছে" else "OK")
+                }
+            }
+        )
+    }
 }
+

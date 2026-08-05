@@ -73,10 +73,6 @@ class SettingsViewModel(
         return backupManager.restoreFromJson(json)
     }
 
-    suspend fun exportCustomersCsv(): String {
-        return backupManager.exportCustomersCsv()
-    }
-
     class Factory(
         private val repository: WiFiManagerRepository,
         private val settingsDataStore: SettingsDataStore,
